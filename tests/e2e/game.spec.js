@@ -171,6 +171,11 @@ test('board fits the viewport without scrolling', async ({ page }) => {
   const n = await page.evaluate(() => window.__driftdock.levels.length);
   for (let i = 0; i < n; i++) {
     await page.evaluate((k) => window.__driftdock.startLevel(k), i);
+    // let the screen slide-in finish and ResizeObserver-driven layout settle
+    await page.evaluate(async () => {
+      await Promise.all(document.querySelector('#screen-game').getAnimations().map((a) => a.finished));
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    });
     const vp = page.viewportSize();
     const box = await page.locator('#board').boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(0);

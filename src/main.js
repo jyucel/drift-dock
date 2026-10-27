@@ -121,9 +121,10 @@ function startLevel(i) {
   show('game');
   $('hud-num').textContent = i + 1;
   $('hud-name').textContent = level.name;
-  board.load(level, state.session.blocks);
-  updateHud();
+  // set the tip first: its height affects how much room the board gets
   setTip(level.tip || defaultTip(), '');
+  updateHud();
+  board.load(level, state.session.blocks);
   if (level.coach) requestAnimationFrame(updateCoach);
 }
 
