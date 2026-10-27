@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Drift Dock — a sliding colour puzzle</title>
+    <meta name="description" content="Drift Dock: glide colourful blocks across the ice, repaint them and steer them into matching docks. 24 handcrafted-and-verified puzzles." />
+    <meta name="theme-color" content="#120f2e" />
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/style.css" />
+    <script type="module" src="src/main.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Title screen -->
+      <section id="screen-title" class="screen" aria-label="Title">
+        <div class="title-wrap">
+          <div class="logo" aria-hidden="true">
+            <span class="logo-block c-R">D</span><span class="logo-block c-Y">R</span><span class="logo-block c-G">I</span><span class="logo-block c-B">F</span><span class="logo-block c-P">T</span>
+          </div>
+          <h1 class="title">Drift&nbsp;Dock</h1>
+          <p class="tagline">Glide. Repaint. Dock.</p>
+          <div class="menu">
+            <button class="btn btn-primary btn-big" id="btn-play">Play</button>
+            <button class="btn" id="btn-levels">Levels</button>
+            <button class="btn" id="btn-howto">How to play</button>
+          </div>
+          <p class="title-stars" id="title-stars"></p>
+        </div>
+        <button class="icon-btn sound-toggle corner" data-sound-toggle aria-label="Toggle sound"></button>
+      </section>
+
+      <!-- Level select -->
+      <section id="screen-levels" class="screen" aria-label="Level select" hidden>
+        <header class="bar">
+          <button class="icon-btn" data-nav="title" aria-label="Back to title">
+            <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+          </button>
+          <h2>Levels</h2>
+          <span class="star-total" id="star-total"></span>
+        </header>
+        <div class="level-grid" id="level-grid"></div>
+        <footer class="levels-foot">
+          <button class="link-btn" id="btn-reset">Reset progress</button>
+        </footer>
+      </section>
+
+      <!-- Game -->
+      <section id="screen-game" class="screen" aria-label="Game" hidden>
+        <header class="bar hud">
+          <button class="icon-btn" data-nav="levels" aria-label="Back to levels">
+            <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+          </button>
+          <div class="hud-title">
+            <span class="hud-num" id="hud-num">1</span>
+            <span class="hud-name" id="hud-name">First Glide</span>
+          </div>
+          <div class="hud-moves" aria-live="polite">
+            <span class="hud-label">Moves</span>
+            <span id="hud-moves">0</span><span class="hud-par">/ <span id="hud-par">0</span></span>
+          </div>
+        </header>
+        <div class="tip" id="tip" aria-live="polite"></div>
+        <div id="board-wrap">
+          <div id="board" role="application" aria-label="Puzzle board"></div>
+        </div>
+        <footer class="controls">
+          <button class="ctrl" id="btn-undo" aria-label="Undo (Z)">
+            <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 010 11H11" /></svg>
+            <span>Undo</span>
+          </button>
+          <button class="ctrl" id="btn-restart" aria-label="Restart (R)">
+            <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8" /><path d="M3 3v5h5" /></svg>
+            <span>Restart</span>
+          </button>
+          <button class="ctrl" id="btn-hint" aria-label="Hint (H)">
+            <svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4" /><path d="M12 2a7 7 0 00-4 12.7V16h8v-1.3A7 7 0 0012 2z" /></svg>
+            <span>Hint</span>
+          </button>
+          <button class="ctrl" id="btn-help" aria-label="Rules">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3M12 17h.01" /></svg>
+            <span>Rules</span>
+          </button>
+          <button class="ctrl sound-toggle" data-sound-toggle aria-label="Toggle sound"></button>
+        </footer>
+      </section>
+
+      <!-- Win modal -->
+      <div class="modal" id="modal-win" role="dialog" aria-modal="true" aria-labelledby="win-title" hidden>
+        <div class="card win-card">
+          <p class="win-kicker" id="win-kicker">Level 1</p>
+          <h2 id="win-title">Docked!</h2>
+          <div class="stars" id="win-stars">
+            <svg viewBox="0 0 24 24" class="star"><path d="M12 2l3 6.6 7.2.8-5.4 4.9 1.5 7.1L12 17.8 5.7 21.4l1.5-7.1L1.8 9.4 9 8.6z" /></svg>
+            <svg viewBox="0 0 24 24" class="star"><path d="M12 2l3 6.6 7.2.8-5.4 4.9 1.5 7.1L12 17.8 5.7 21.4l1.5-7.1L1.8 9.4 9 8.6z" /></svg>
+            <svg viewBox="0 0 24 24" class="star"><path d="M12 2l3 6.6 7.2.8-5.4 4.9 1.5 7.1L12 17.8 5.7 21.4l1.5-7.1L1.8 9.4 9 8.6z" /></svg>
+          </div>
+          <p class="win-stats" id="win-stats"></p>
+          <div class="win-actions">
+            <button class="btn btn-primary btn-big" id="btn-next">Next level</button>
+            <div class="row">
+              <button class="btn" id="btn-replay">Replay</button>
+              <button class="btn" id="btn-win-levels">Levels</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rules modal -->
+      <div class="modal" id="modal-help" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
+        <div class="card help-card">
+          <h2 id="help-title">How to play</h2>
+          <ul class="rules">
+            <li><span class="rule-ico ico-swipe"></span><div><b>Swipe a block</b> (or tap it, then an arrow). It glides across the ice until something stops it.</div></li>
+            <li><span class="rule-ico ico-dock"></span><div><b>Dock every coloured block.</b> A block that slides into a gate of its own colour leaves the board. Other gates act like walls.</div></li>
+            <li><span class="rule-ico ico-paint"></span><div><b>Paint pads</b> recolour any block that glides over them.</div></li>
+            <li><span class="rule-ico ico-stone"></span><div><b>Stones</b> never dock — but they make great stoppers.</div></li>
+            <li><span class="rule-ico ico-wrap"></span><div><b>Portals</b> carry a block to the matching portal on the opposite edge.</div></li>
+          </ul>
+          <p class="keys">Keyboard: <kbd>Tab</kbd> select · <kbd>←↑→↓</kbd> slide · <kbd>Z</kbd> undo · <kbd>R</kbd> restart · <kbd>H</kbd> hint</p>
+          <button class="btn btn-primary" id="btn-help-close">Got it</button>
+        </div>
+      </div>
+
+      <!-- Confirm modal -->
+      <div class="modal" id="modal-confirm" role="dialog" aria-modal="true" hidden>
+        <div class="card">
+          <h2>Reset all progress?</h2>
+          <p>Stars and best scores will be erased.</p>
+          <div class="row">
+            <button class="btn" id="btn-confirm-no">Cancel</button>
+            <button class="btn btn-danger" id="btn-confirm-yes">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="fx-layer" aria-hidden="true"></div>
+      <div id="fx-top" aria-hidden="true"></div>
+      <noscript><p class="noscript">Drift Dock needs JavaScript to run.</p></noscript>
+    </div>
+  </body>
+</html>

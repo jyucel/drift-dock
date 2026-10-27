@@ -1,0 +1,22 @@
+{
+  "name": "drift-dock",
+  "version": "1.0.0",
+  "description": "Drift Dock — a sliding colour puzzle game for the browser.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "test": "node --test tests/",
+    "test:e2e": "playwright test",
+    "test:all": "npm test && npm run test:e2e",
+    "levels": "node tools/build-levels.mjs",
+    "build": "node tools/build-site.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

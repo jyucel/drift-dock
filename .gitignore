@@ -1,0 +1,9 @@
+node_modules/
+_site/
+test-results/
+playwright-report/
+tools/out/
+.DS_Store
+*.log
+CLAUDE.md
+.claude/
