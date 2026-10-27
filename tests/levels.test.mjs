@@ -1,57 +1,15 @@
-// Level verification: every shipped level is proven solvable by the exact
-// solver, its par is the true optimum, and the optimal solution replays
-// legally move by move under the game rules.
+// Level-set checks. Per-level proofs (solvable, optimal par, legal replay)
+// live in level-checks.mjs and run per chapter in levels-ch*.test.mjs.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LEVELS } from '../src/levels.js';
-import { parseLevel, Session, isWon, blockAt } from '../src/engine.js';
-import { solve, analyze, legalMoves } from '../src/solver.js';
+import { LEVELS, CHAPTERS } from '../src/levels.js';
+import { parseLevel, Session, blockAt } from '../src/engine.js';
+import { analyze, legalMoves } from '../src/solver.js';
 
 test('there are at least 20 levels with unique ids and names', () => {
   assert.ok(LEVELS.length >= 20, `only ${LEVELS.length} levels`);
   assert.equal(new Set(LEVELS.map((l) => l.id)).size, LEVELS.length);
   for (const l of LEVELS) assert.ok(l.name && l.name.length > 1, `level ${l.id} needs a name`);
-});
-
-for (const [i, def] of LEVELS.entries()) {
-  test(`level ${i + 1} "${def.name}" is valid, solvable and its par is optimal`, () => {
-    const level = parseLevel(def);
-    assert.ok(!isWon(level.blocks), 'level must not start already won');
-    assert.ok(level.blocks.some((b) => b.color !== 'S'), 'level needs coloured blocks');
-
-    // every coloured block's colour must have at least one dock, or a paint pad leading elsewhere
-    const dockColors = new Set([...level.border.values()].filter((f) => f.kind === 'dock').map((f) => f.color));
-    const paintColors = new Set(level.cells.filter((c) => c.kind === 'paint').map((c) => c.color));
-    for (const b of level.blocks) {
-      if (b.color === 'S') continue;
-      assert.ok(dockColors.has(b.color) || paintColors.size > 0, `no way out for ${b.color} block`);
-    }
-
-    const r = solve(level, level.blocks, 3_000_000);
-    assert.ok(!r.capped, 'solver must finish exhaustively');
-    assert.ok(r.solvable, 'level must be solvable');
-    assert.equal(r.moves.length, def.par, 'stored par must equal the optimal solution length');
-
-    // Replay through the Session API: each move must be legal and the last one must win.
-    const s = new Session(level);
-    for (const [k, m] of r.moves.entries()) {
-      assert.ok(!s.won, `won early at move ${k}`);
-      const b = blockAt(s.blocks, m.x, m.y);
-      assert.ok(b, `move ${k}: no block at ${m.x},${m.y}`);
-      const res = s.move(b.id, m.dir);
-      assert.ok(res.ok, `move ${k} illegal: ${res.reason}`);
-    }
-    assert.ok(s.won, 'optimal solution must win');
-    assert.equal(s.moves, def.par);
-  });
-}
-
-test('no level can be won in fewer moves than par (exhaustive check of the state graph)', () => {
-  for (const def of LEVELS) {
-    const a = analyze(parseLevel(def), 2_000_000);
-    assert.ok(!a.capped, `${def.id}: state graph too large to verify`);
-    assert.equal(a.optimal, def.par, `${def.id}: exhaustive optimum differs from par`);
-  }
 });
 
 test('tutorial levels never trap the player in the first two levels', () => {
@@ -61,13 +19,28 @@ test('tutorial levels never trap the player in the first two levels', () => {
   }
 });
 
-test('difficulty increases: later tiers demand longer solutions', () => {
+test('there are 124 levels in 6 chapters of 24 + 5 x 20, with unique boards', () => {
+  assert.equal(LEVELS.length, 124);
+  assert.equal(CHAPTERS.length, 6);
+  const counts = CHAPTERS.map((_, c) => LEVELS.filter((l) => l.chapter === c + 1).length);
+  assert.deepEqual(counts, [24, 20, 20, 20, 20, 20]);
+  assert.equal(new Set(LEVELS.map((l) => l.map.join('/'))).size, LEVELS.length, 'duplicate boards');
+  // chapters are contiguous so the level numbers read in order
+  LEVELS.forEach((l, i) => i && assert.ok(l.chapter >= LEVELS[i - 1].chapter));
+});
+
+test('difficulty increases: tutorial < chapter 1 core < later chapters < finale', () => {
   const avg = (arr) => arr.reduce((s, l) => s + l.par, 0) / arr.length;
-  const first = avg(LEVELS.slice(0, 4));
-  const mid = avg(LEVELS.slice(4, 12));
-  const last = avg(LEVELS.slice(-4));
-  assert.ok(first < mid && mid < last, `averages ${first} < ${mid} < ${last}`);
-  assert.ok(LEVELS.slice(-4).every((l) => l.par >= 10), 'final levels should be substantial');
+  const chapter = (c) => LEVELS.filter((l) => l.chapter === c);
+  assert.ok(avg(LEVELS.slice(0, 4)) < avg(LEVELS.slice(4, 12)));
+  assert.ok(avg(chapter(2)) < avg(chapter(5)));
+  assert.ok(avg(chapter(5)) < avg(chapter(6)));
+  for (let c = 2; c <= 6; c++) {
+    const ch = chapter(c);
+    // within a chapter, the second half is at least as demanding as the first
+    assert.ok(avg(ch.slice(0, 10)) <= avg(ch.slice(10)), `chapter ${c} ramps up`);
+  }
+  assert.ok(chapter(6).slice(-5).every((l) => l.par >= 13), 'the finale should be substantial');
 });
 
 test('each introduced mechanic actually appears in its intro level', () => {

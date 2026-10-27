@@ -183,6 +183,11 @@ button {
   outline-offset: 2px;
 }
 
+.corner-toggles {
+  display: flex;
+  gap: 8px;
+}
+
 .corner {
   position: absolute;
   top: calc(12px + env(safe-area-inset-top));
@@ -294,14 +299,55 @@ button {
 .level-grid {
   flex: 1;
   overflow-y: auto;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
-  gap: 12px;
-  padding: 8px 16px 16px;
-  align-content: start;
-  max-width: 720px;
+  padding: 4px 16px 16px;
+  max-width: 760px;
   width: 100%;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.chapter-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 0 2px 10px;
+  margin-bottom: 12px;
+  border-bottom: 2px solid hsl(var(--chapter-hue, 250) 70% 65% / 0.35);
+}
+
+.chapter-head h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: hsl(var(--chapter-hue, 250) 90% 82%);
+}
+
+.chapter-head p {
+  margin: 2px 0 0;
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+}
+
+.chapter-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.8rem;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.chapter-stars {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.chapter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 12px;
 }
 
 .level-btn {
@@ -345,7 +391,7 @@ button {
 }
 
 .level-btn.done {
-  background: linear-gradient(180deg, #4a3fa8, #2f2878);
+  background: linear-gradient(180deg, hsl(var(--chapter-hue, 250) 45% 45%), hsl(var(--chapter-hue, 250) 50% 28%));
 }
 
 .level-btn.current {
@@ -1134,10 +1180,15 @@ kbd {
 
 /* ---------- responsive ---------- */
 
-@media (max-width: 420px) {
+@media (max-width: 460px) {
+  .controls {
+    gap: 5px;
+    padding-inline: 8px;
+  }
   .ctrl {
-    width: 58px;
+    width: 54px;
     height: 56px;
+    font-size: 0.66rem;
   }
   .hud-name {
     font-size: 1rem;

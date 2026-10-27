@@ -20,14 +20,22 @@ test('star thresholds', () => {
   assert.equal(starsFor(14, 10), 1);
 });
 
-test('only the first level is unlocked at the start; winning unlocks the next', () => {
+test('the first three levels start unlocked; at most two unsolved levels may be skipped', () => {
   resetProgress();
   const p = loadProgress();
   assert.ok(isUnlocked(p, LEVELS, 0));
-  assert.ok(!isUnlocked(p, LEVELS, 1));
+  assert.ok(isUnlocked(p, LEVELS, 2));
+  assert.ok(!isUnlocked(p, LEVELS, 3));
   recordWin(p, LEVELS[0].id, 1, 1);
-  assert.ok(isUnlocked(p, LEVELS, 1));
-  assert.ok(!isUnlocked(p, LEVELS, 2));
+  assert.ok(isUnlocked(p, LEVELS, 3));
+  assert.ok(!isUnlocked(p, LEVELS, 4));
+  // solving out of order also counts
+  recordWin(p, LEVELS[2].id, 3, 3);
+  assert.ok(isUnlocked(p, LEVELS, 4));
+  assert.ok(!isUnlocked(p, LEVELS, 5));
+  // solving everything unlocks everything
+  for (const l of LEVELS) recordWin(p, l.id, l.par, l.par);
+  assert.ok(LEVELS.every((_, i) => isUnlocked(p, LEVELS, i)));
 });
 
 test('best score and stars only improve, and persist across loads', () => {

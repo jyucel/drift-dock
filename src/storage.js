@@ -4,7 +4,7 @@
  */
 const KEY = 'driftdock.progress.v1';
 
-const empty = () => ({ best: {}, stars: {}, muted: false, last: null, seenHelp: false });
+const empty = () => ({ best: {}, stars: {}, muted: false, music: true, last: null, seenHelp: false });
 
 export function loadProgress() {
   try {
@@ -50,8 +50,15 @@ export function recordWin(p, levelId, moves, par) {
   return { stars, newBest };
 }
 
-/** A level is unlocked when it is the first or its predecessor is solved. */
+/** How many unsolved levels a player may leave behind before the next one locks. */
+export const SKIP_ALLOWANCE = 2;
+
+/**
+ * A level is unlocked when at most SKIP_ALLOWANCE earlier levels are still
+ * unsolved, so one tough puzzle never blocks the whole game.
+ */
 export function isUnlocked(p, levels, index) {
-  if (index <= 0) return true;
-  return p.best[levels[index - 1].id] != null;
+  let unsolved = 0;
+  for (let i = 0; i < index; i++) if (p.best[levels[i].id] == null) unsolved++;
+  return unsolved <= SKIP_ALLOWANCE;
 }

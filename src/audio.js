@@ -6,6 +6,18 @@ let ctx = null;
 let master = null;
 let muted = false;
 let noiseBuf = null;
+const readyListeners = [];
+
+/** The shared AudioContext (null until the first user gesture creates it). */
+export function getContext() {
+  return ctx;
+}
+
+/** Run `fn(ctx)` as soon as audio is available (immediately if it already is). */
+export function onAudioReady(fn) {
+  if (ctx) fn(ctx);
+  else readyListeners.push(fn);
+}
 
 function ensure() {
   if (ctx) {
@@ -21,6 +33,7 @@ function ensure() {
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate);
   const data = noiseBuf.getChannelData(0);
   for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  readyListeners.splice(0).forEach((fn) => fn(ctx));
   return ctx;
 }
 

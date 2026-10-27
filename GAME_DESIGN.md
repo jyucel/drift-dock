@@ -48,8 +48,15 @@ Stars: ★★★ at par (the solver's optimal move count), ★★ within a small
 | 13–16 | Stones introduced, then used as tools |
 | 17–20 | Portals introduced and combined |
 | 21–24 | Master levels mixing every mechanic, 6×6 and larger |
+| 25–44 | **Harbour Lanes** — busier boards, up to three colours (par 8–11) |
+| 45–64 | **Stone Quay** — every level needs a stone moved (par 9–14) |
+| 65–84 | **Portal Bay** — every level needs a portal (par 11–15) |
+| 85–104 | **Prism Docks** — four colours and paint in every solution (par 12–18) |
+| 105–124 | **Deep Freeze** — everything at once (par 15–25) |
 
-Levels 5–24 (except the handcrafted stone and portal introductions, 13 and 17) were produced by an offline generator (`tools/generate.mjs`) that builds random boards per tier, solves them exactly and keeps the ones that need long optimal solutions, contain many dead-end states and few correct first moves, and actually *use* the tier's featured mechanic. They were then curated and named by hand. The automated test suite re-proves every level and its par on every run.
+Players may leave up to two levels unsolved behind them, so one stubborn puzzle never blocks progress.
+
+Levels 5–24 (except the handcrafted stone and portal introductions, 13 and 17) were produced by an offline generator (`tools/generate.mjs`) that builds random boards per tier, solves them exactly and keeps the ones that need long optimal solutions, contain many dead-end states and few correct first moves, and actually *use* the tier's featured mechanic. They were then curated and named by hand. Chapters 2–6 use the same generator with denser pillar layouts (tight boards make better puzzles than open ones) and a table-driven fast solver; `tools/select-levels.mjs` keeps the 20 best unique boards per chapter and orders them by difficulty. The automated test suite re-proves every level and its par on every run, and cross-checks the fast solver against the reference rules engine.
 
 ## 5. UX principles
 
@@ -60,4 +67,6 @@ Levels 5–24 (except the handcrafted stone and portal introductions, 13 and 17)
 
 ## 6. Identity
 
-Night-harbour palette (indigo water, frosted ice), glossy "candy" blocks with little eyes that look where they're sliding, glowing gates with pulsing chevrons, swirling portals, and a synthesized sound kit (glide whoosh, thud, rising docking chimes, paint blip). All graphics are CSS/SVG and all sounds are generated with the Web Audio API — no third-party assets.
+Night-harbour palette (indigo water, frosted ice), glossy "candy" blocks with little eyes that look where they're sliding, glowing gates with pulsing chevrons, swirling portals, and a synthesized sound kit (glide whoosh, thud, rising docking chimes, paint blip).
+
+**Music.** A calm generative piece at 76 BPM in D major: soft detuned pads through a breathing low-pass filter, a sine bass, a plucked melody that random-walks a pentatonic scale while leaning toward the current chord's tones, occasional glassy bells and a whisper of shaker, all through a shared echo and a generated reverb. Four chord progressions rotate every eight bars and the melody alternates busy and sparse passages, so it stays fresh over long sessions. It ducks under the victory fanfare and pauses when the tab is hidden; music and effects have separate toggles. All graphics are CSS/SVG and all sounds are generated with the Web Audio API — no third-party assets.

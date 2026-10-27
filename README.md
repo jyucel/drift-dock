@@ -4,7 +4,7 @@
 
 ▶ **Play:** https://jyucel.github.io/drift-dock/
 
-Blocks sit on a sheet of ice. Swipe one and it glides until something stops it. Steer every coloured block into the gate of its own colour — but gates of other colours are solid walls, paint pads change a block's colour as it passes, heavy stones never leave, and portals throw blocks across the board. Each of the 24 levels is proven solvable, and its par is the true minimum number of moves.
+Blocks sit on a sheet of ice. Swipe one and it glides until something stops it. Steer every coloured block into the gate of its own colour — but gates of other colours are solid walls, paint pads change a block's colour as it passes, heavy stones never leave, and portals throw blocks across the board. There are 124 levels in six chapters; every one is proven solvable, and its par is the true minimum number of moves.
 
 ## How to play
 
@@ -18,16 +18,19 @@ Blocks sit on a sheet of ice. Swipe one and it glides until something stops it. 
 | **Portals** | Numbered pairs: leave through one, re-enter through its twin. |
 | **Stars** | ★★★ for matching par, ★★ for close, ★ for any solution. |
 
-<kbd>Z</kbd> undo · <kbd>R</kbd> restart · <kbd>H</kbd> hint. The game tells you as soon as a position can no longer be won.
+<kbd>Z</kbd> undo · <kbd>R</kbd> restart · <kbd>H</kbd> hint · <kbd>M</kbd> music. The game tells you as soon as a position can no longer be won.
 
 ## Features
 
-- 24 levels in five tiers, with a coached interactive tutorial (animated hand) for the first moves and each new mechanic
+- 124 levels in six chapters — First Light, Harbour Lanes, Stone Quay, Portal Bay, Prism Docks and Deep Freeze — from one-move tutorials to 25-move finales
+- Coached interactive tutorial (animated hand) for the first moves and each new mechanic
+- Skip-friendly progression: you may leave up to two unsolved levels behind
 - Mouse, touch and keyboard controls; tap-to-select arrows for precision
-- Unlimited undo, restart, and a solver-powered hint button
+- Unlimited undo, restart, and a solver-powered hint button (runs in a Web Worker, so even the biggest boards never stall the game)
 - Dead-end detection with a gentle nudge to undo
 - Smooth Web-Animations movement, squash on impact, particle bursts, confetti victory screen
-- Synthesized sound effects (Web Audio — no audio files) with a persistent mute toggle
+- Generative background music: a calm night-harbour piece synthesized live (pads, bass, an improvising plucked melody, bells, echo and reverb) that rotates chord progressions so it never loops exactly
+- Synthesized sound effects (Web Audio — no audio files); separate, persistent music and sound toggles
 - Level select with stars; progress saved in `localStorage`
 - Responsive layout for phones and desktops, safe-area aware
 - Accessible: every colour also has a unique symbol, high contrast, large touch targets, `prefers-reduced-motion` support
@@ -51,9 +54,9 @@ npx playwright install chromium
 npm run test:e2e     # browser tests on desktop and mobile viewports
 ```
 
-`npm test` proves **every** level solvable with an exhaustive breadth-first search, checks that the stored par equals the optimal solution, replays that solution move by move under the game rules, and checks win conditions, undo, restart, unlocking and saved progress.
+`npm test` explores the **complete** state graph of every level to prove it solvable and that the stored par is optimal, cross-checks the fast solver against the reference rules engine on every level, replays an optimal solution move by move under the game rules, and checks win conditions, undo, restart, unlocking and saved progress. Levels are verified per chapter in parallel (about a minute).
 
-The browser tests serve the site under `/drift-dock/` (like GitHub Pages) and drive the real UI: swipes (mouse and touch), tap-select arrows, keyboard, invalid moves, undo/restart, hints, dead-end warnings, saved progress across reloads, mute, layout fitting on every level, and a full playthrough of all 24 levels in order. Set `E2E_ALL_BROWSERS=1` to also run Firefox, desktop WebKit and mobile WebKit (iPhone) — CI does this on every push.
+The browser tests serve the site under `/drift-dock/` (like GitHub Pages) and drive the real UI: swipes (mouse and touch), tap-select arrows, keyboard, invalid moves, undo/restart, hints, dead-end warnings, saved progress across reloads, mute and music toggles, an offline render of the music (level and clipping), layout fitting on every level, and a full playthrough of all 124 levels through the real UI, one chapter per test. Set `E2E_ALL_BROWSERS=1` to also run Firefox, desktop WebKit and mobile WebKit (iPhone) — CI does this on every push.
 
 Add `?fast=1` to the URL to speed up animations (used by the tests).
 
@@ -64,12 +67,16 @@ index.html            app shell (screens and dialogs)
 css/style.css         all styling and visual effects
 src/engine.js         pure game rules: parsing, sliding, painting, portals, docking, undo
 src/solver.js         breadth-first solver + state-graph analysis
-src/levels.js         the 24 levels (generated from tools/levels.source.mjs)
+src/levels.js         the 124 levels and chapters (generated by tools/build-levels.mjs)
 src/board.js          board rendering, animation, pointer input
 src/main.js           screens, tutorial coach, hints, progress
 src/audio.js          synthesized sound effects
+src/music.js          generative background music
+src/fastsolver.js     table-driven solver for hints, dead-end checks and the generator
+src/solver-worker.js  runs the fast solver in a Web Worker
 src/storage.js        localStorage progress, stars, unlocking
 tools/generate.mjs    random level generator, scored by the solver
+tools/select-levels.mjs picks, orders and names chapters 2-6 from generator output
 tools/build-levels.mjs  builds src/levels.js and computes par
 tools/serve.mjs       tiny static server (supports a base subpath)
 tools/build-site.mjs  copies the static site into _site/ for Pages
@@ -78,8 +85,8 @@ tests/                node:test unit tests and Playwright e2e tests
 
 ## Level design pipeline
 
-1. `node tools/generate.mjs <tier> [seed] [seconds]` builds random boards for a tier (basic, paint, stone, wrap, master), solves each one exactly and keeps those with long optimal solutions, many dead-end states, few correct opening moves, and the tier's mechanic actually used in the solution.
-2. Picks are curated and named in `tools/levels.source.mjs` next to the handcrafted tutorials.
+1. `node tools/generate.mjs <tier> [seed] [seconds]` builds random boards for a tier (basic, paint, stone, wrap, master for chapter 1; c2–c6 for chapters 2–6), solves each one exactly and keeps those with long optimal solutions, many dead-end states, few correct opening moves, and the tier's mechanic actually used in the solution.
+2. Chapter 1 picks are curated and named in `tools/levels.source.mjs` next to the handcrafted tutorials; `node tools/select-levels.mjs` picks the best unique boards for chapters 2–6, orders each chapter by difficulty and names them (`tools/levels.extra.json`).
 3. `npm run levels` regenerates `src/levels.js` with solver-computed pars; `npm test` re-verifies everything.
 
 Map legend — border: `#` wall, `R G B Y P` dock, `~` portal; interior: `.` ice, `#` pillar, `r g b y p` paint pad, `R G B Y P` block, `S` stone.
@@ -90,4 +97,4 @@ Map legend — border: `#` wall, `R G B Y P` dock, `~` portal; interior: `.` ice
 
 ## License
 
-MIT — see [LICENSE](LICENSE). All graphics (CSS/SVG) and sounds (Web Audio synthesis) are original to this project.
+MIT — see [LICENSE](LICENSE). All graphics (CSS/SVG), sounds and music (Web Audio synthesis) are original to this project.

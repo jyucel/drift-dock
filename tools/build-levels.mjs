@@ -9,14 +9,14 @@
 import { writeFileSync } from 'node:fs';
 import { parseLevel } from '../src/engine.js';
 import { solve } from '../src/solver.js';
-import { SOURCE } from './levels.source.mjs';
+import { SOURCE, CHAPTERS } from './levels.source.mjs';
 
 const out = [];
 for (const src of SOURCE) {
   const level = parseLevel(src);
   const r = solve(level, level.blocks, 2_000_000);
   if (!r.solvable) throw new Error(`Level ${src.id} is not solvable`);
-  out.push({ ...src, par: r.moves.length });
+  out.push({ ...src, chapter: src.chapter ?? 1, par: r.moves.length });
   console.log(`${String(out.length).padStart(2)} ${src.id.padEnd(16)} par ${r.moves.length}  (${r.explored} states)`);
 }
 
@@ -40,6 +40,8 @@ writeFileSync(
  * Map legend — border: # wall, R/G/B/Y/P dock, ~ portal.
  *              interior: . ice, # pillar, r/g/b/y/p paint pad, R/G/B/Y/P block, S stone.
  */
+export const CHAPTERS = ${JSON.stringify(CHAPTERS, null, 2).replace(/"(\w+)":/g, '$1:')};
+
 export const LEVELS = [
 ${body}
 ];

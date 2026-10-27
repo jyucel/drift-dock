@@ -23,6 +23,18 @@ async function tapMove(page, x, y, dir) {
   await idle(page);
 }
 
+// Same real mouse taps, minus Playwright's per-click actionability polling;
+// used by the long playthroughs to keep them fast.
+async function quickTapMove(page, x, y, dir) {
+  const center = async (loc) => {
+    const b = await loc.boundingBox();
+    return [b.x + b.width / 2, b.y + b.height / 2];
+  };
+  await page.mouse.click(...(await center(block(page, x, y))));
+  await page.mouse.click(...(await center(page.locator(`.handle[data-dir="${dir}"]`))));
+  await idle(page);
+}
+
 let errors;
 test.beforeEach(async ({ page }) => {
   errors = [];
@@ -144,11 +156,15 @@ test('progress unlocks levels and survives a reload; mute persists', async ({ pa
   await page.goto('./?fast=1');
   await page.click('#btn-levels');
   await expect(page.locator('.level-btn')).toHaveCount(await page.evaluate(() => window.__driftdock.levels.length));
-  await expect(page.locator('.level-btn').nth(1)).toBeDisabled();
+  // the first three levels are open; you may leave at most two unsolved behind
+  await expect(page.locator('.level-btn').nth(2)).toBeEnabled();
+  await expect(page.locator('.level-btn').nth(3)).toBeDisabled();
+  await expect(page.locator('.chapter')).toHaveCount(6);
   await page.locator('.level-btn').nth(0).click();
   await swipe(page, block(page, 0, 0), 'right');
   await page.click('#btn-win-levels');
-  await expect(page.locator('.level-btn').nth(1)).toBeEnabled();
+  await expect(page.locator('.level-btn').nth(3)).toBeEnabled();
+  await expect(page.locator('.level-btn').nth(4)).toBeDisabled();
   await expect(page.locator('.level-btn').nth(0)).toHaveClass(/done/);
 
   await page.click('[data-nav="title"]');
@@ -158,15 +174,17 @@ test('progress unlocks levels and survives a reload; mute persists', async ({ pa
   await expect(page.locator('#btn-play')).toContainText('Continue');
   await expect(page.locator('#screen-title [data-sound-toggle]')).toHaveAttribute('aria-pressed', 'false');
   await page.click('#btn-levels');
-  await expect(page.locator('.level-btn').nth(1)).toBeEnabled();
-  await expect(page.locator('.level-btn').nth(2)).toBeDisabled();
+  await expect(page.locator('.level-btn').nth(3)).toBeEnabled();
+  await expect(page.locator('.level-btn').nth(4)).toBeDisabled();
 
   await page.click('#btn-reset');
   await page.click('#btn-confirm-yes');
-  await expect(page.locator('.level-btn').nth(1)).toBeDisabled();
+  await expect(page.locator('.level-btn').nth(3)).toBeDisabled();
+  await expect(page.locator('.level-btn.done')).toHaveCount(0);
 });
 
 test('board fits the viewport without scrolling', async ({ page }) => {
+  test.setTimeout(300_000); // checks every one of the 124 levels
   await page.goto('./?fast=1');
   const n = await page.evaluate(() => window.__driftdock.levels.length);
   for (let i = 0; i < n; i++) {
@@ -193,46 +211,92 @@ async function playThrough(page, from, to, { clickNextOnLast = true } = {}) {
   for (let i = from; i < to; i++) {
     await expect(page.locator('#hud-num')).toHaveText(String(i + 1));
     const moves = await page.evaluate(async () => {
-      const { solve } = await import('./src/solver.js');
+      const { fastSolve } = await import('./src/fastsolver.js');
       const dd = window.__driftdock;
-      return solve(dd.levels[dd.state.index], dd.state.blocks).moves;
+      return fastSolve(dd.levels[dd.state.index], dd.state.blocks).moves;
     });
-    for (const m of moves) await tapMove(page, m.x, m.y, m.dir);
+    for (const m of moves) await quickTapMove(page, m.x, m.y, m.dir);
     await expect(page.locator('#modal-win')).toBeVisible();
     await expect(page.locator('#win-stars .star.on')).toHaveCount(3);
     if (i < to - 1 || clickNextOnLast) await page.click('#btn-next');
   }
 }
 
-// Split in two halves so they can run in parallel; together they cover every level.
-test('levels 1-12 can be completed through the UI, in order', async ({ page }) => {
-  test.setTimeout(600_000);
-  await page.goto('./?fast=1');
-  await page.click('#btn-play');
-  await playThrough(page, 0, 12);
-  await expect(page.locator('#hud-num')).toHaveText('13');
+// One test per chapter so they run in parallel; together they play every
+// level through the real UI. Earlier chapters are marked solved first so the
+// chapter-cleared and finale screens can be checked.
+for (let chapter = 1; chapter <= 6; chapter++) {
+  test(`chapter ${chapter} can be completed through the UI, in order`, async ({ page }) => {
+    test.setTimeout(900_000);
+    await page.goto('./?fast=1');
+    const info = await page.evaluate((c) => {
+      const { levels } = window.__driftdock;
+      const first = levels.findIndex((l) => l.chapter === c);
+      const last = levels.findLastIndex((l) => l.chapter === c);
+      const best = Object.fromEntries(levels.slice(0, first).map((l) => [l.id, 99]));
+      localStorage.setItem('driftdock.progress.v1', JSON.stringify({ best, stars: {} }));
+      return { first, last, n: levels.length };
+    }, chapter);
+    await page.reload();
+    await page.click('#btn-play'); // continues at the first unsolved level
+    await playThrough(page, info.first, info.last + 1, { clickNextOnLast: false });
+    if (info.last === info.n - 1) {
+      await expect(page.locator('#win-title')).toHaveText('Harbour Master!');
+      await expect(page.locator('#win-stats')).toContainText(`All ${info.n} docks cleared`);
+      await page.click('#btn-next');
+      await expect(page.locator('#screen-levels')).toBeVisible();
+      await expect(page.locator('.level-btn.done')).toHaveCount(info.n);
+    } else {
+      await expect(page.locator('#win-title')).toHaveText(/cleared!$/);
+      await page.click('#btn-next');
+      await expect(page.locator('#hud-num')).toHaveText(String(info.last + 2));
+    }
+  });
+}
+
+test('music renders at a comfortable level without clipping', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', 'one engine is enough for the offline render');
+  await page.goto('./');
+  const stats = await page.evaluate(async () => {
+    const { renderOffline } = await import('./src/music.js');
+    const buf = await renderOffline(24);
+    let peak = 0;
+    let sum = 0;
+    let n = 0;
+    let nan = false;
+    for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+      for (const v of buf.getChannelData(ch)) {
+        if (Number.isNaN(v)) nan = true;
+        peak = Math.max(peak, Math.abs(v));
+        sum += v * v;
+        n++;
+      }
+    }
+    return { peak, rms: Math.sqrt(sum / n), nan };
+  });
+  expect(stats.nan).toBe(false);
+  expect(stats.peak).toBeLessThan(0.9); // no clipping
+  expect(stats.rms).toBeGreaterThan(0.01); // actually audible
+  expect(stats.rms).toBeLessThan(0.2); // background, not foreground
 });
 
-test('levels 13+ can be completed through the UI, ending at the finale', async ({ page }) => {
-  test.setTimeout(600_000);
-  // pretend the first half is already solved so the finale screen can trigger
-  await page.addInitScript(() => {
-    if (sessionStorage.getItem('seeded')) return;
-    sessionStorage.setItem('seeded', '1');
-    const ids = ['first-glide', 'corner', 'stopper', 'fresh-paint', 'two-step', 'crossing', 'sunrise', 'chicane', 'dye-works', 'violet-hour', 'mixed-signals', 'palette-swap'];
-    const best = Object.fromEntries(ids.map((id) => [id, 99]));
-    const stars = Object.fromEntries(ids.map((id) => [id, 1]));
-    localStorage.setItem('driftdock.progress.v1', JSON.stringify({ best, stars }));
-  });
-  await page.goto('./?fast=1');
-  const n = await page.evaluate(() => window.__driftdock.levels.length);
-  await page.click('#btn-play'); // continues at the first unsolved level (13)
-  await playThrough(page, 12, n, { clickNextOnLast: false });
-  await expect(page.locator('#win-title')).toHaveText('Harbour Master!');
-  await expect(page.locator('#win-stats')).toContainText(`All ${n} docks cleared`);
-  await page.click('#btn-next');
-  await expect(page.locator('#screen-levels')).toBeVisible();
-  await expect(page.locator('.level-btn.done')).toHaveCount(n); // 12 seeded + 12 played
+test('music can be toggled and the choice persists', async ({ page }) => {
+  await page.goto('./');
+  const toggle = page.locator('#screen-title [data-music-toggle]');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await page.click('#btn-howto'); // any gesture unlocks audio
+  await page.click('#btn-help-close');
+  await expect.poll(() => page.evaluate(() => window.__driftdock.audio.musicPlaying)).toBe(true);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => page.evaluate(() => window.__driftdock.audio.musicPlaying)).toBe(false);
+  await page.reload();
+  await expect(page.locator('#screen-title [data-music-toggle]')).toHaveAttribute('aria-pressed', 'false');
+  await page.click('#btn-play');
+  await expect(page.locator('.controls [data-music-toggle]')).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('m');
+  await expect(page.locator('.controls [data-music-toggle]')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => page.evaluate(() => window.__driftdock.audio.musicPlaying)).toBe(true);
 });
 
 test('touch swipe works on touch devices', async ({ page, browserName }, info) => {

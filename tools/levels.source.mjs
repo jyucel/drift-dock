@@ -6,6 +6,21 @@
  * Optional fields: tip (shown above the board), coach (animated tutorial hand),
  * coachTips (per-move tutorial text), intro (mechanic introduced; shows NEW).
  */
+import { existsSync, readFileSync } from 'node:fs';
+
+export const CHAPTERS = [
+  { name: 'First Light', blurb: 'Learn to glide, paint, push stones and ride portals.', hue: 250 },
+  { name: 'Harbour Lanes', blurb: 'Busier docks and longer routes.', hue: 200 },
+  { name: 'Stone Quay', blurb: 'Heavy stones everywhere — make them work for you.', hue: 30 },
+  { name: 'Portal Bay', blurb: 'Think around the edges.', hue: 285 },
+  { name: 'Prism Docks', blurb: 'Four colours, more paint, fewer stoppers.', hue: 330 },
+  { name: 'Deep Freeze', blurb: 'Everything at once. The hardest docks on the ice.', hue: 185 },
+];
+
+// Chapters 2-6 are picked from generator output by tools/select-levels.mjs.
+const extraFile = new URL('./levels.extra.json', import.meta.url);
+const EXTRA = existsSync(extraFile) ? JSON.parse(readFileSync(extraFile, 'utf8')) : [];
+
 export const SOURCE = [
   {
     id: 'first-glide', name: 'First Glide', coach: true,
@@ -201,7 +216,7 @@ export const SOURCE = [
     '#r..#..#',
     '##P#####',
   ] },
-  { id: 'harbour-master', name: 'Harbour Master', map: [
+  { id: 'harbour-master', name: 'Last Light', map: [
     '#B######',
     '#y.#g#.#',
     '#.#....#',
@@ -211,4 +226,5 @@ export const SOURCE = [
     '#.#..Y.Y',
     '#####G##',
   ] },
+  ...EXTRA,
 ];

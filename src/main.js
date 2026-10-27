@@ -3,16 +3,49 @@
  * glue between the rules engine (engine.js) and the board view (board.js).
  */
 import { parseLevel, Session, slide, blockAt } from './engine.js';
-import { solve } from './solver.js';
-import { LEVELS } from './levels.js';
+import { fastSolve } from './fastsolver.js';
+import { LEVELS, CHAPTERS } from './levels.js';
 import { Board, burst, confetti } from './board.js';
 import * as audio from './audio.js';
+import { initMusic, setMusicEnabled, isMusicEnabled, isMusicPlaying, duckMusic } from './music.js';
 import { loadProgress, saveProgress, resetProgress, recordWin, isUnlocked } from './storage.js';
 
 const $ = (id) => document.getElementById(id);
 const levels = LEVELS.map((def) => parseLevel(def));
 let progress = loadProgress();
 audio.setMuted(progress.muted);
+initMusic(progress.music !== false);
+
+/* ------------------------------------------------------------ solver worker */
+
+// Hints and dead-end checks run in a worker; fall back to the main thread if
+// workers (or module workers) are unavailable.
+let worker = null;
+let reqId = 0;
+const pending = new Map();
+try {
+  worker = new Worker(new URL('./solver-worker.js', import.meta.url), { type: 'module' });
+  worker.onmessage = (e) => {
+    pending.get(e.data.id)?.(e.data);
+    pending.delete(e.data.id);
+  };
+  worker.onerror = () => {
+    worker = null;
+    pending.forEach((resolve, id) => resolve({ id, solvable: false, capped: true, moves: null }));
+    pending.clear();
+  };
+} catch {
+  worker = null;
+}
+
+function solveAsync(index, blocks, cap) {
+  if (!worker) return Promise.resolve(fastSolve(levels[index], blocks, Math.min(cap, 60000)));
+  const id = ++reqId;
+  return new Promise((resolve) => {
+    pending.set(id, resolve);
+    worker.postMessage({ id, def: LEVELS[index], blocks, cap });
+  });
+}
 
 const state = {
   index: 0,
@@ -61,36 +94,56 @@ function renderTitle() {
 const STAR_SVG = '<svg viewBox="0 0 24 24"><path d="M12 2l3 6.6 7.2.8-5.4 4.9 1.5 7.1L12 17.8 5.7 21.4l1.5-7.1L1.8 9.4 9 8.6z"/></svg>';
 const LOCK_SVG = '<svg class="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>';
 
+function levelButton(lvl, i, current) {
+  const b = document.createElement('button');
+  b.className = 'level-btn';
+  b.dataset.index = i;
+  const stars = progress.stars[lvl.id] || 0;
+  if (!isUnlocked(progress, levels, i)) {
+    b.disabled = true;
+    b.innerHTML = LOCK_SVG;
+    b.setAttribute('aria-label', `Level ${i + 1} locked`);
+    return b;
+  }
+  b.innerHTML = `<span>${i + 1}</span><span class="mini-stars">${[0, 1, 2]
+    .map((k) => STAR_SVG.replace('<svg', `<svg class="${k < stars ? 'on' : ''}"`))
+    .join('')}</span>`;
+  b.setAttribute('aria-label', `Level ${i + 1}: ${lvl.name}${stars ? `, ${stars} stars` : ''}`);
+  b.title = lvl.name;
+  if (progress.best[lvl.id] != null) b.classList.add('done');
+  if (i === current && progress.best[lvl.id] == null) b.classList.add('current');
+  if (lvl.intro) b.insertAdjacentHTML('beforeend', `<span class="tag">NEW</span>`);
+  b.addEventListener('click', () => {
+    audio.play('click');
+    startLevel(i);
+  });
+  return b;
+}
+
 function renderLevelGrid() {
-  const grid = $('level-grid');
-  grid.innerHTML = '';
+  const root = $('level-grid');
+  root.innerHTML = '';
   const current = firstUnsolved();
-  levels.forEach((lvl, i) => {
-    const b = document.createElement('button');
-    b.className = 'level-btn';
-    b.dataset.index = i;
-    const unlocked = isUnlocked(progress, levels, i);
-    const stars = progress.stars[lvl.id] || 0;
-    if (!unlocked) {
-      b.disabled = true;
-      b.innerHTML = LOCK_SVG;
-      b.setAttribute('aria-label', `Level ${i + 1} locked`);
-    } else {
-      b.innerHTML = `<span>${i + 1}</span><span class="mini-stars">${[0, 1, 2]
-        .map((k) => STAR_SVG.replace('<svg', `<svg class="${k < stars ? 'on' : ''}"`))
-        .join('')}</span>`;
-      b.setAttribute('aria-label', `Level ${i + 1}: ${lvl.name}${stars ? `, ${stars} stars` : ''}`);
-      if (stars) b.classList.add('done');
-      if (i === current && progress.best[lvl.id] == null) b.classList.add('current');
-      if (lvl.intro) b.insertAdjacentHTML('beforeend', `<span class="tag">NEW</span>`);
-      b.addEventListener('click', () => {
-        audio.play('click');
-        startLevel(i);
-      });
-    }
-    grid.appendChild(b);
+  CHAPTERS.forEach((ch, c) => {
+    const members = levels.map((l, i) => [l, i]).filter(([l]) => l.chapter === c + 1);
+    if (!members.length) return;
+    const solved = members.filter(([l]) => progress.best[l.id] != null).length;
+    const stars = members.reduce((sum, [l]) => sum + (progress.stars[l.id] || 0), 0);
+    const section = document.createElement('section');
+    section.className = 'chapter';
+    section.style.setProperty('--chapter-hue', ch.hue);
+    section.innerHTML = `<header class="chapter-head">
+        <div><h3>${c + 1}. ${ch.name}</h3><p>${ch.blurb}</p></div>
+        <div class="chapter-meta"><span>${solved}/${members.length}</span><span class="chapter-stars">★ ${stars}/${members.length * 3}</span></div>
+      </header>`;
+    const grid = document.createElement('div');
+    grid.className = 'chapter-grid';
+    for (const [l, i] of members) grid.appendChild(levelButton(l, i, current));
+    section.appendChild(grid);
+    root.appendChild(section);
   });
   $('star-total').textContent = `★ ${totalStars()} / ${levels.length * 3}`;
+  root.querySelector('.level-btn.current')?.scrollIntoView({ block: 'center' });
 }
 
 /* --------------------------------------------------------------------- game */
@@ -189,22 +242,21 @@ function afterChange() {
   }
   // Dead-end detection: let the player know when the puzzle can no longer be won.
   const snapshot = s.blocks;
-  setTimeout(() => {
+  solveAsync(state.index, snapshot, 150000).then((r) => {
     if (state.session !== s || s.blocks !== snapshot) return;
-    const r = solve(level, snapshot, 60000);
     if (!r.solvable && !r.capped) {
       state.deadEnd = true;
       setTip('No way out from here — <b>undo</b> or <b>restart</b>.', 'warn');
       updateHud();
-    } else if (!$('tip').classList.contains('good')) {
+    } else {
       setTip(level.tip && s.moves === 0 ? level.tip : defaultTip(), '');
     }
-  }, 30);
+  });
 }
 
 function updateCoach() {
   const s = state.session;
-  const r = solve(s.level, s.blocks, 60000);
+  const r = fastSolve(s.level, s.blocks, 60000); // coached levels are tiny
   if (!r.solvable) {
     state.deadEnd = true;
     updateHud();
@@ -239,10 +291,14 @@ function restart() {
   afterChange();
 }
 
-function hint() {
+async function hint() {
   if (state.busy || !state.session || state.session.won) return;
   const s = state.session;
-  const r = solve(s.level, s.blocks, 250000);
+  const snapshot = s.blocks;
+  $('btn-hint').disabled = true;
+  const r = await solveAsync(state.index, snapshot, 600000);
+  $('btn-hint').disabled = false;
+  if (state.session !== s || s.blocks !== snapshot || state.busy) return;
   if (!r.solvable) {
     state.deadEnd = !r.capped;
     updateHud();
@@ -259,12 +315,20 @@ function hint() {
 function win() {
   const s = state.session;
   const level = s.level;
+  const chapterLevels = levels.filter((l) => l.chapter === level.chapter);
+  const chapterWasDone = chapterLevels.every((l) => progress.best[l.id] != null);
   const { stars, newBest } = recordWin(progress, level.id, s.moves, level.par);
+  const chapterCleared = !chapterWasDone && chapterLevels.every((l) => progress.best[l.id] != null);
   saveProgress(progress);
   const last = state.index === levels.length - 1;
   const allDone = levels.every((l) => progress.best[l.id] != null);
   $('win-kicker').textContent = `Level ${state.index + 1} · ${level.name}`;
-  $('win-title').textContent = last && allDone ? 'Harbour Master!' : ['Docked!', 'Nicely done!', 'Smooth sailing!', 'Perfect drift!'][stars];
+  $('win-title').textContent =
+    last && allDone
+      ? 'Harbour Master!'
+      : chapterCleared
+        ? `${CHAPTERS[level.chapter - 1].name} cleared!`
+        : ['Docked!', 'Nicely done!', 'Smooth sailing!', 'Perfect drift!'][stars];
   $('win-stats').innerHTML =
     `${s.moves} moves · par ${level.par}` +
     (newBest && s.moves > level.par ? '<br>New personal best!' : '') +
@@ -274,6 +338,7 @@ function win() {
   const starEls = [...$('win-stars').children];
   starEls.forEach((el) => el.classList.remove('on'));
   openModal('modal-win');
+  duckMusic();
   audio.play('win');
   confetti();
   starEls.forEach((el, k) => {
@@ -301,9 +366,31 @@ function updateSoundButtons() {
   });
 }
 
+const MUSIC_ON = '<svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><span>Music</span>';
+const MUSIC_OFF = '<svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/><path d="M3 3l18 18"/></svg><span>Music off</span>';
+
+function updateMusicButtons() {
+  const on = isMusicEnabled();
+  document.querySelectorAll('[data-music-toggle]').forEach((b) => {
+    b.innerHTML = on ? MUSIC_ON : MUSIC_OFF;
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', on ? 'Turn music off' : 'Turn music on');
+  });
+}
+
+function toggleMusic() {
+  audio.unlockAudio();
+  progress.music = !isMusicEnabled();
+  setMusicEnabled(progress.music);
+  saveProgress(progress);
+  updateMusicButtons();
+  audio.play('click');
+}
+
 function toggleSound() {
   progress.muted = !audio.isMuted();
   audio.setMuted(progress.muted);
+initMusic(progress.music !== false);
   saveProgress(progress);
   updateSoundButtons();
   audio.play('click');
@@ -311,6 +398,7 @@ function toggleSound() {
 
 function bind() {
   document.addEventListener('pointerdown', () => audio.unlockAudio(), { once: true });
+  document.addEventListener('keydown', () => audio.unlockAudio(), { once: true });
   $('btn-play').addEventListener('click', () => {
     audio.play('click');
     const solvedAll = levels.every((l) => progress.best[l.id] != null);
@@ -330,6 +418,7 @@ function bind() {
     }),
   );
   document.querySelectorAll('[data-sound-toggle]').forEach((b) => b.addEventListener('click', toggleSound));
+  document.querySelectorAll('[data-music-toggle]').forEach((b) => b.addEventListener('click', toggleMusic));
   $('btn-undo').addEventListener('click', undo);
   $('btn-restart').addEventListener('click', restart);
   $('btn-hint').addEventListener('click', hint);
@@ -350,9 +439,9 @@ function bind() {
   $('btn-confirm-no').addEventListener('click', () => closeModal('modal-confirm'));
   $('btn-confirm-yes').addEventListener('click', () => {
     resetProgress();
-    const muted = progress.muted;
+    const { muted, music } = progress;
     progress = loadProgress();
-    progress.muted = muted;
+    Object.assign(progress, { muted, music });
     saveProgress(progress);
     closeModal('modal-confirm');
     renderLevelGrid();
@@ -396,12 +485,15 @@ function bind() {
       restart();
     } else if (e.key === 'h' || e.key === 'H') {
       hint();
+    } else if (e.key === 'm' || e.key === 'M') {
+      toggleMusic();
     }
   });
 }
 
 bind();
 updateSoundButtons();
+updateMusicButtons();
 show('title');
 
 // Small hook for automated browser tests (read-only views of game state).
@@ -411,4 +503,7 @@ window.__driftdock = {
     return { index: state.index, moves: state.session?.moves, blocks: state.session?.blocks, won: state.session?.won, busy: state.busy };
   },
   startLevel,
+  get audio() {
+    return { context: audio.getContext()?.state ?? null, musicPlaying: isMusicPlaying() };
+  },
 };

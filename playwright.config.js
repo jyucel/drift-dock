@@ -16,6 +16,7 @@ export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 60_000,
   fullyParallel: true,
+  workers: process.env.CI ? 4 : undefined,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: {
@@ -24,7 +25,8 @@ export default defineConfig({
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } } },
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    // full playthroughs of chapters 2-6 run on desktop Chromium only
+    { name: 'mobile', use: { ...devices['Pixel 7'] }, grepInvert: /chapter [2-6] can be completed/ },
     ...extraBrowsers,
   ],
   webServer: {

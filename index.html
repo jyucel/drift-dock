@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Drift Dock — a sliding colour puzzle</title>
-    <meta name="description" content="Drift Dock: glide colourful blocks across the ice, repaint them and steer them into matching docks. 24 handcrafted-and-verified puzzles." />
+    <meta name="description" content="Drift Dock: glide colourful blocks across the ice, repaint them and steer them into matching docks. 124 verified puzzles in six chapters, with generative music." />
     <meta name="theme-color" content="#120f2e" />
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="css/style.css" />
@@ -27,7 +27,10 @@
           </div>
           <p class="title-stars" id="title-stars"></p>
         </div>
-        <button class="icon-btn sound-toggle corner" data-sound-toggle aria-label="Toggle sound"></button>
+        <div class="corner corner-toggles">
+          <button class="icon-btn" data-music-toggle aria-label="Toggle music"></button>
+          <button class="icon-btn" data-sound-toggle aria-label="Toggle sound"></button>
+        </div>
       </section>
 
       <!-- Level select -->
@@ -81,7 +84,8 @@
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 015.8 1c0 2-3 3-3 3M12 17h.01" /></svg>
             <span>Rules</span>
           </button>
-          <button class="ctrl sound-toggle" data-sound-toggle aria-label="Toggle sound"></button>
+          <button class="ctrl" data-music-toggle aria-label="Toggle music"></button>
+          <button class="ctrl" data-sound-toggle aria-label="Toggle sound"></button>
         </footer>
       </section>
 
@@ -117,7 +121,7 @@
             <li><span class="rule-ico ico-stone"></span><div><b>Stones</b> never dock — but they make great stoppers.</div></li>
             <li><span class="rule-ico ico-wrap"></span><div><b>Portals</b> carry a block to the matching portal on the opposite edge.</div></li>
           </ul>
-          <p class="keys">Keyboard: <kbd>Tab</kbd> select · <kbd>←↑→↓</kbd> slide · <kbd>Z</kbd> undo · <kbd>R</kbd> restart · <kbd>H</kbd> hint</p>
+          <p class="keys">Keyboard: <kbd>Tab</kbd> select · <kbd>←↑→↓</kbd> slide · <kbd>Z</kbd> undo · <kbd>R</kbd> restart · <kbd>H</kbd> hint · <kbd>M</kbd> music</p>
           <button class="btn btn-primary" id="btn-help-close">Got it</button>
         </div>
       </div>

@@ -13,7 +13,8 @@
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { parseLevel, COLORS } from '../src/engine.js';
-import { analyze, solve, applyMove } from '../src/solver.js';
+import { solve, applyMove } from '../src/solver.js';
+import { fastAnalyze } from '../src/fastsolver.js';
 
 const tierArg = process.argv[2];
 const seedArg = Number(process.argv[3] || 7);
@@ -36,6 +37,12 @@ const TIERS = [
   { name: 'stone', count: 4, w: [5, 6], h: [5, 6], colors: [2, 2], perColor: [1, 2], walls: [1, 4], paint: [0, 1], stones: [1, 2], wraps: [0, 0], L: [5, 11], need: ['stone'] },
   { name: 'wrap', count: 4, w: [5, 6], h: [5, 6], colors: [2, 3], perColor: [1, 2], walls: [2, 5], paint: [0, 1], stones: [0, 1], wraps: [1, 2], L: [5, 12], need: ['wrap'] },
   { name: 'master', count: 5, w: [6, 6], h: [6, 6], colors: [2, 3], perColor: [1, 2], walls: [3, 6], paint: [1, 2], stones: [0, 1], wraps: [0, 1], L: [9, 18], need: [] },
+  // chapters 2-6 (levels 25-124): denser pillars keep boards tight and focused
+  { name: 'c2', w: [5, 6], h: [5, 6], colors: [2, 3], perColor: [1, 2], walls: [4, 8], paint: [0, 2], stones: [0, 1], wraps: [0, 0], L: [7, 11], need: [] },
+  { name: 'c3', w: [5, 6], h: [5, 7], colors: [2, 3], perColor: [1, 1], walls: [5, 9], paint: [0, 2], stones: [1, 2], wraps: [0, 0], L: [8, 14], need: ['stone'] },
+  { name: 'c4', w: [5, 6], h: [5, 7], colors: [2, 3], perColor: [1, 2], walls: [5, 9], paint: [0, 1], stones: [0, 1], wraps: [1, 2], L: [9, 15], need: ['wrap'] },
+  { name: 'c5', w: [6, 7], h: [6, 7], colors: [3, 4], perColor: [1, 1], walls: [8, 14], paint: [1, 2], stones: [0, 1], wraps: [0, 1], L: [11, 18], need: ['paint'] },
+  { name: 'c6', w: [6, 7], h: [6, 7], colors: [3, 4], perColor: [1, 1], walls: [8, 14], paint: [1, 3], stones: [0, 2], wraps: [0, 2], L: [13, 26], need: [] },
 ];
 
 function randomDef(t) {
@@ -129,7 +136,17 @@ if (!t) throw new Error(`unknown tier ${tierArg}; use one of ${TIERS.map((x) => 
 {
   const found = [];
   const t0 = Date.now();
+  const save = () => {
+    found.sort((p, q) => q.score - p.score);
+    mkdirSync(new URL('./out/', import.meta.url), { recursive: true });
+    writeFileSync(new URL(`./out/${t.name}-${seedArg}.json`, import.meta.url), JSON.stringify(found.slice(0, 80), null, 1));
+  };
+  let lastSave = t0;
   while (Date.now() - t0 < budgetMs) {
+    if (Date.now() - lastSave > 60000) {
+      save();
+      lastSave = Date.now();
+    }
     const def = randomDef(t);
     const key = def.map.join('/');
     if (seen.has(key)) continue;
@@ -141,18 +158,15 @@ if (!t) throw new Error(`unknown tier ${tierArg}; use one of ${TIERS.map((x) => 
       continue;
     }
     if (level.blocks.filter((b) => b.color !== 'S').length < 2) continue;
-    const quick = solve(level, level.blocks, 40000);
-    if (!quick.solvable || quick.moves.length < t.L[0] || quick.moves.length > t.L[1]) continue;
-    const a = analyze(level, 150000);
+    // screen with the fast solver; small caps also favour tight, focused boards
+    const a = fastAnalyze(level, t.cap || 40000);
     if (a.capped || a.optimal < t.L[0] || a.optimal > t.L[1]) continue;
-    const sol = quick;
+    const sol = solve(level, level.blocks, 2_000_000);
     const used = mechanicsUsed(level, sol.moves);
     if (!t.need.every((n) => used.has(n))) continue;
-    const score = a.optimal + a.deadShare * 8 - a.goodFirst * 0.7 + (used.size * 0.5);
+    const score = a.optimal + a.deadShare * 8 - a.goodFirst * 0.7 + used.size * 0.5 - Math.log10(a.states) * 0.5;
     found.push({ ...def, optimal: a.optimal, states: a.states, deadShare: +a.deadShare.toFixed(3), goodFirst: a.goodFirst, used: [...used], score });
   }
-  found.sort((p, q) => q.score - p.score);
+  save();
   console.log(`${t.name}: ${found.length} candidates, best L=${found[0]?.optimal}`);
-  mkdirSync(new URL('./out/', import.meta.url), { recursive: true });
-  writeFileSync(new URL(`./out/${t.name}-${seedArg}.json`, import.meta.url), JSON.stringify(found.slice(0, 30), null, 1));
 }
